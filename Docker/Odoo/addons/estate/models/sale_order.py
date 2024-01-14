@@ -1,8 +1,11 @@
 from odoo import fields, models
 from datetime import datetime, timedelta
+import logging
+
 
 class EstateProperty(models.Model):
     _inherit = 'sale.order.line'
+    _logger = logging.getLogger(__name__)
 
     # Ajout de champs personnalisés pour gérer les propriétés immobilières
     training_date = fields.Date(string="Training Date")  # Date de formation associée à la ligne de commande
@@ -15,17 +18,24 @@ class EstateProperty(models.Model):
 
     # Méthode déclenchée par le bouton de demande d'approbation
     def button_request_approval(self):
+        self._logger.debug("Button Request Approval Clicked")
+
         total_amount = sum(self.mapped('price_unit'))
+        self._logger.debug(f"Total Amount: {total_amount}")
 
         if total_amount < 500:
-            self.order_id.action_confirm()  # Confirmer automatiquement la commande si le montant est inférieur à 500
+            self._logger.debug("Total Amount < 500")
+            self.order_id.action_confirm()
         elif 500 <= total_amount < 1000:
+            self._logger.debug("500 <= Total Amount < 1000")
             approver = self.env['hr.employee'].search([('job_id', 'in', ['manager_level_1', 'manager_level_2'])], limit=1)
             self._request_approval(approver)
         elif 1000 <= total_amount < 5000:
+            self._logger.debug("1000 <= Total Amount < 5000")
             approver = self.env['hr.employee'].search([('job_id', '=', 'manager_level_2')], limit=1)
             self._request_approval(approver)
         else:
+            self._logger.debug("Total Amount >= 5000")
             administrator = self.env['hr.employee'].search([('job_id', '=', 'administrator')], limit=1)
             self._request_approval(administrator)
 
