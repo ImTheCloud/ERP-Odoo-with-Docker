@@ -1,14 +1,33 @@
 from odoo import fields, models
 from datetime import datetime, timedelta
-import logging
 
+
+class SaleOrder(models.Model):
+    _inherit = 'sale.order'
+
+    def action_confirm(self):
+        res = super(SaleOrder, self).action_confirm()
+
+        # Pour chaque ligne de commande confirmée
+        for line in self.order_line.filtered(lambda l: l.training_date):
+            self.env['calendar.event'].create({
+                'name': line.name,
+                'start': line.training_date,
+                'stop': fields.Datetime.to_string(fields.Datetime.from_string(line.training_date) + timedelta(hours=8)),
+                'allday': False,
+                'rrule': "FREQ=WEEKLY",  
+                'partner_ids': [(4, line.employee.user_id.partner_id.id)], 
+            })
+
+        return res
+    
 class EstateProperty(models.Model):
     _inherit = 'sale.order.line'
-    _logger = logging.getLogger(__name__) # Pour les logs
 
     # Ajout de champs personnalisés pour gérer les propriétés immobilières
     training_date = fields.Date(string="Training Date")  # Date de formation associée à la ligne de commande
     employee = fields.Many2one(comodel_name="hr.employee", string="Employee", ondelete="set null")  # Employé associé à la ligne de commande
+    
     
     state = fields.Selection([
         ('draft', 'Draft'),
@@ -18,10 +37,8 @@ class EstateProperty(models.Model):
 
     # Méthode déclenchée par le bouton de demande d'approbation
     def button_request_approval(self):
-        self._logger.debug("Button Request Approval Clicked")
 
         total_amount = sum(self.mapped('price_unit'))
-        self._logger.debug(f"Total Amount: {total_amount}")
 
         if total_amount < 500:
             self.order_id.action_confirm()
@@ -94,17 +111,4 @@ class EstateProperty(models.Model):
     # Méthode pour confirmer une commande avec gestion de la date de formation
     def action_confirm(self):
         self._check_employee_limit()  # Vérification de la limite d'employé
-        for order_line in self:
-            if order_line.training_date and order_line.product_template_id:
-                # Création d'un événement de calendrier pour la formation
-                start_datetime = datetime.combine(order_line.training_date, datetime.min.time())
-                end_datetime = start_datetime + timedelta(hours=2)
-                self.env['calendar.event'].create({
-                    'name': 'Formation : %s' % order_line.product_template_id.name,
-                    'start_datetime': start_datetime,
-                    'stop_datetime': end_datetime,
-                    'partner_ids': [(6, 0, [order_line.order_id.partner_id.id])],
-                    'description': 'Formation pour le produit : %s' % order_line.product_template_id.name,
-                    'location': order_line.order_id.partner_id.property_product_pricelist.city or '',
-                    'alarm_ids': [(0, 0, {'name': 'Rappel', 'alarm_id': self.env.ref('calendar.alarm_reminder').id, 'duration': 60})],
-                })
+       
