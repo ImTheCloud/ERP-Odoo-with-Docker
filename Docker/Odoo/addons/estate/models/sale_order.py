@@ -13,25 +13,6 @@ class EstateProperty(models.Model):
         ('cancelled', 'Cancelled'),
     ], string='Status', default='draft')  # État de la commande (brouillon, confirmé, annulé)
 
-    # Méthode pour demander l'approbation d'une commande
-    def _request_approval(self, approver):
-        message = f"Demande d'approbation envoyée à {approver.name}."
-        log_note_group = self.env['mail.channel'].search([('name', '=', 'Log Note')], limit=1)
-        if not log_note_group:
-            log_note_group = self.env['mail.channel'].create({'name': 'Log Note'})
-        log_note_group.message_post(body=message, subtype='mail.mt_comment', content_subtype='plaintext')
-
-        # Création d'une activité pour l'approbation
-        activity = self.env['mail.activity'].create({
-            'res_id': self.id,
-            'res_model': self._name,
-            'activity_type_id': self.env.ref('mail.mail_activity_data_todo').id,
-            'user_id': approver.user_id.id,
-            'date_deadline': fields.Datetime.now() + timedelta(days=7),
-            'note': f"Devis {self.id} doit être confirmé par {approver.name}.",
-        })
-        self.confirm_quotation  # Appel à la méthode de confirmation
-
     # Méthode déclenchée par le bouton de demande d'approbation
     def button_request_approval(self):
         total_amount = sum(self.mapped('price_unit'))
@@ -48,6 +29,25 @@ class EstateProperty(models.Model):
             administrator = self.env['hr.employee'].search([('job_id', '=', 'administrator')], limit=1)
             self._request_approval(administrator)
 
+  # Méthode pour demander l'approbation d'une commande
+    def _request_approval(self, approver):
+        message = f"Demande d'approbation envoyée à {approver.name}."
+        log_note_group = self.env['mail.channel'].search([('name', '=', 'Log Note')], limit=1)
+        if not log_note_group:
+            log_note_group = self.env['mail.channel'].create({'name': 'Log Note'})
+        log_note_group.message_post(body=message, subtype_id=self.env.ref('mail.mt_comment').id, content_subtype='plaintext')
+
+        # Création d'une activité pour l'approbation
+        activity = self.env['mail.activity'].create({
+            'res_id': self.id,
+            'res_model': self._name,
+            'activity_type_id': self.env.ref('mail.mail_activity_data_todo').id,
+            'user_id': approver.user_id.id,
+            'date_deadline': fields.Datetime.now() + timedelta(days=7),
+            'note': f"Devis {self.id} doit être confirmé par {approver.name}.",
+        })
+        self.confirm_quotation  # Appel à la méthode de confirmation
+        
     # Méthode pour confirmer un devis
     def confirm_quotation(self):
         if self.state == 'draft':
