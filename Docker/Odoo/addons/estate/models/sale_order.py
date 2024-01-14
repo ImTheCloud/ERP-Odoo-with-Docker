@@ -1,25 +1,29 @@
 from odoo import fields, models
 from datetime import datetime, timedelta
 
-
 class SaleOrder(models.Model):
     _inherit = 'sale.order'
 
     def action_confirm(self):
         res = super(SaleOrder, self).action_confirm()
 
-        # Pour chaque ligne de commande confirmée
         for line in self.order_line.filtered(lambda l: l.training_date):
-            self.env['calendar.event'].create({
-                'name': line.name,
-                'start': line.training_date,
-                'stop': fields.Datetime.to_string(fields.Datetime.from_string(line.training_date) + timedelta(hours=8)),
-                'allday': False,
-                'rrule': "FREQ=WEEKLY",  
-                'partner_ids': [(4, line.employee.user_id.partner_id.id)], 
-            })
+            start_datetime = datetime.combine(line.training_date, datetime.min.time())
+            end_datetime = start_datetime + timedelta(days=1, seconds=-1)
+
+            event_vals = {
+                'name': f"{line.product_id.display_name} - {line.name}",
+                'start': start_datetime,
+                'stop': end_datetime,
+                'allday': True,
+                'rrule': "FREQ=WEEKLY",
+                'partner_ids': [(4, line.employee.user_id.partner_id.id)],
+                'description': line.name,
+            }
+            self.env['calendar.event'].create(event_vals)
 
         return res
+
     
 class EstateProperty(models.Model):
     _inherit = 'sale.order.line'
