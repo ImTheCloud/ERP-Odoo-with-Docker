@@ -1,16 +1,11 @@
-import logging
-from odoo import fields, models, api
+from odoo import fields, models
 from datetime import datetime, timedelta
-
-_logger = logging.getLogger(__name__)
 
 class EstateProperty(models.Model):
     _inherit = 'sale.order.line'
     training_date = fields.Date(string="Training Date")
     employee = fields.Many2one(comodel_name="hr.employee", string="Employee", ondelete="set null")
 
-  
-   
     def _request_approval(self, approver):
         message = f"Request for approval sent to {approver.name}."
         log_note_group = self.env['mail.channel'].search([('name', '=', 'Log Note')], limit=1)
@@ -24,7 +19,6 @@ class EstateProperty(models.Model):
             user_id=approver.user_id.id,
             date_deadline=fields.Datetime.now() + timedelta(days=7)
         )
-
 
     def button_request_approval(self):
         total_amount = sum(self.mapped('price_unit'))
@@ -47,12 +41,17 @@ class EstateProperty(models.Model):
 
 
 
+
+
+
+
+
+
     # Method to check if the employee limit condition is met
     def _check_employee_limit(self):
         if self.employee.name == "Employee Limited" and sum(self.mapped('price_unit')) > 250:
             message = "Sale Order not confirmed: Amount above the partner limit."
             self._post_in_log_note_group(message)
-            _logger.warning(message)
             return False
         return True
 
