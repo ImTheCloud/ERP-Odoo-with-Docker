@@ -1,3 +1,0 @@
-Vrai projet se truve dans le disque C du pc de Claudiu:
-
- C:\Docker
