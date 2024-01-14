@@ -14,35 +14,31 @@ class EstateProperty(models.Model):
     # Method to post a message in the 'Log Note' group
     @api.model
     def _post_in_log_note_group(self, message):
-        # Find or create the 'Log Note' group
         log_note_group = self.env['mail.channel'].search([('name', '=', 'Log Note')], limit=1)
         if not log_note_group:
             log_note_group = self.env['mail.channel'].create({'name': 'Log Note'})
-
-        # Post the message in the 'Log Note' group
         log_note_group.message_post(body=message)
 
-    # Method to request approval for a quotation
+   
     def _request_approval(self, approver):
-        # Message to notify the approver
-        message = "Quotation '%s' needs your approval." % self.order_id.name
-
-        # Add buttons to the message
-        buttons = [
-            {'name': 'Confirm', 'action': 'confirm_approval'},
-            {'name': 'Refuse', 'action': 'refuse_approval'}
-        ]
-
-        # Post the message in the 'Log Note' group with buttons
+        message = f"Request for approval sent to {approver.name}."
         log_note_group = self.env['mail.channel'].search([('name', '=', 'Log Note')], limit=1)
         if not log_note_group:
             log_note_group = self.env['mail.channel'].create({'name': 'Log Note'})
+        log_note_group.message_post(body=message, subtype='mail.mt_comment', content_subtype='plaintext')
 
-        log_note_group.message_post(body=message, subtype='mail.mt_comment', content_subtype='plaintext', buttons=buttons)
+        # Schedule an activity for the approver
+        self.activity_schedule(
+            'mail.mail_activity_data_todo',
+            note=f"Quotation {self.id} needs to be confirmed by {approver.name}.",
+            user_id=approver.user_id.id,
+            date_deadline=fields.Datetime.now() + timedelta(days=7)
+        )
 
 
     # Button to request approval based on the total amount of the quotation
     def button_request_approval(self):
+        
         total_amount = sum(self.mapped('price_unit'))
 
         if total_amount < 500:
@@ -56,6 +52,11 @@ class EstateProperty(models.Model):
         else:
             administrator = self.env['hr.employee'].search([('job_id', '=', 'administrator')], limit=1)
             self._request_approval(administrator)
+
+
+
+
+
 
     # Button to confirm and approve the sale order line
     def button_confirm_and_approve(self):
@@ -80,9 +81,16 @@ class EstateProperty(models.Model):
         _logger.info("End of action_confirm method for SaleOrder")
         return res
 
+
+
+
+
+
+
+
     # Method to check if the employee limit condition is met
     def _check_employee_limit(self):
-        if self.employee.name == "Employee Limited" and sum(self.mapped('price_unit')) > 350:
+        if self.employee.name == "Employee Limited" and sum(self.mapped('price_unit')) > 250:
             message = "Sale Order not confirmed: Amount above the partner limit."
             self._post_in_log_note_group(message)
             _logger.warning(message)
