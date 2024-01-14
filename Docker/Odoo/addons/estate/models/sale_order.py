@@ -6,19 +6,10 @@ _logger = logging.getLogger(__name__)
 
 class EstateProperty(models.Model):
     _inherit = 'sale.order.line'
-
-    # Add new fields to the sale order line
     training_date = fields.Date(string="Training Date")
     employee = fields.Many2one(comodel_name="hr.employee", string="Employee", ondelete="set null")
 
-    # Method to post a message in the 'Log Note' group
-    @api.model
-    def _post_in_log_note_group(self, message):
-        log_note_group = self.env['mail.channel'].search([('name', '=', 'Log Note')], limit=1)
-        if not log_note_group:
-            log_note_group = self.env['mail.channel'].create({'name': 'Log Note'})
-        log_note_group.message_post(body=message)
-
+  
    
     def _request_approval(self, approver):
         message = f"Request for approval sent to {approver.name}."
@@ -27,7 +18,6 @@ class EstateProperty(models.Model):
             log_note_group = self.env['mail.channel'].create({'name': 'Log Note'})
         log_note_group.message_post(body=message, subtype='mail.mt_comment', content_subtype='plaintext')
 
-        # Schedule an activity for the approver
         self.activity_schedule(
             'mail.mail_activity_data_todo',
             note=f"Quotation {self.id} needs to be confirmed by {approver.name}.",
@@ -36,9 +26,7 @@ class EstateProperty(models.Model):
         )
 
 
-    # Button to request approval based on the total amount of the quotation
     def button_request_approval(self):
-        
         total_amount = sum(self.mapped('price_unit'))
 
         if total_amount < 500:
@@ -52,35 +40,6 @@ class EstateProperty(models.Model):
         else:
             administrator = self.env['hr.employee'].search([('job_id', '=', 'administrator')], limit=1)
             self._request_approval(administrator)
-
-
-
-
-
-
-    # Button to confirm and approve the sale order line
-    def button_confirm_and_approve(self):
-        self.action_confirm()
-        message = "Sale Order confirmed: Amount ok for the partner limit."
-        self._post_in_log_note_group(message)
-
-    # Button to refuse the sale order line
-    def button_refuse(self):
-        self.action_refuse()
-        message = "Sale Order not confirmed: Amount above the partner limit."
-        self._post_in_log_note_group(message)
-
-    # Overridden action_confirm method
-    def action_confirm(self):
-        if not self._check_employee_limit():
-            return
-
-        _logger.info("Start of action_confirm method for SaleOrder")
-        self._create_training_calendar_event()
-        res = super(EstateProperty, self).action_confirm()
-        _logger.info("End of action_confirm method for SaleOrder")
-        return res
-
 
 
 
