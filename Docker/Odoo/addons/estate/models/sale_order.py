@@ -2,14 +2,14 @@ from odoo import fields, models
 from datetime import datetime, timedelta
 import logging
 
-
 class EstateProperty(models.Model):
     _inherit = 'sale.order.line'
-    _logger = logging.getLogger(__name__)
+    _logger = logging.getLogger(__name__) # Pour les logs
 
     # Ajout de champs personnalisés pour gérer les propriétés immobilières
     training_date = fields.Date(string="Training Date")  # Date de formation associée à la ligne de commande
     employee = fields.Many2one(comodel_name="hr.employee", string="Employee", ondelete="set null")  # Employé associé à la ligne de commande
+    
     state = fields.Selection([
         ('draft', 'Draft'),
         ('confirmed', 'Confirmed'),
@@ -24,22 +24,18 @@ class EstateProperty(models.Model):
         self._logger.debug(f"Total Amount: {total_amount}")
 
         if total_amount < 500:
-            self._logger.debug("Total Amount < 500")
             self.order_id.action_confirm()
         elif 500 <= total_amount < 1000:
-            self._logger.debug("500 <= Total Amount < 1000")
             approver = self.env['hr.employee'].search([('job_id', 'in', ['manager_level_1', 'manager_level_2'])], limit=1)
             self._request_approval(approver)
         elif 1000 <= total_amount < 5000:
-            self._logger.debug("1000 <= Total Amount < 5000")
             approver = self.env['hr.employee'].search([('job_id', '=', 'manager_level_2')], limit=1)
             self._request_approval(approver)
         else:
-            self._logger.debug("Total Amount >= 5000")
             administrator = self.env['hr.employee'].search([('job_id', '=', 'administrator')], limit=1)
             self._request_approval(administrator)
 
-  # Méthode pour demander l'approbation d'une commande
+    # Méthode pour demander l'approbation d'une commande
     def _request_approval(self, approver):
         message = f"Demande d'approbation envoyée à {approver.name}."
         log_note_group = self.env['mail.channel'].search([('name', '=', 'Log Note')], limit=1)
@@ -56,7 +52,7 @@ class EstateProperty(models.Model):
             'date_deadline': fields.Datetime.now() + timedelta(days=7),
             'note': f"Devis {self.id} doit être confirmé par {approver.name}.",
         })
-        self.confirm_quotation  # Appel à la méthode de confirmation
+        self.confirm_quotation()  # Appel à la méthode de confirmation
         
     # Méthode pour confirmer un devis
     def confirm_quotation(self):
