@@ -32,7 +32,6 @@ class SaleOrder(models.Model):
 
         return res
 
-    
     def action_request_approval(self):
         res = False  
 
@@ -44,45 +43,56 @@ class SaleOrder(models.Model):
                 res = super(SaleOrder, order).action_confirm()
             elif 500 <= total_amount <= 1000:
                 # Approval required from managers with job title 'Manager1' or 'Manager2'
-                employee = order.env['hr.employee'].search([('user_id', '=', order.env.user.id)], limit=1)
-                if employee and employee.job_title in ['Manager1', 'Manager2']:
+                managers = order.env['hr.employee'].search([('job_title', 'in', ['Manager1', 'Manager2'])])
+                if managers:
                     res = super(SaleOrder, order).action_confirm()
-                else:
                     # Create activity to notify about approval requirement
-                    order.activity_schedule(
-                        'mail.mail_activity_data_todo',
-                        note="Quotation approval requested. Please confirm.",
-                        user_id=order.user_id.id
-                    )
+                    activity_vals = {
+                        'activity_type_id': order.env.ref('mail.mail_activity_data_todo').id,
+                        'note': "Need to be confirm by a manager.",
+                        'user_id': managers.ids[0],  # Assign the activity to the first manager
+                    }
+                    order.activity_schedule('mail.mail_activity_data_todo', **activity_vals)
                     order.message_post(body="Request for approval sent to the managers.", subtype_xmlid="mail.mt_comment")
+                    
             elif 1000 <= total_amount <= 5000:
                 # Approval required from managers with job title 'Manager2'
-                employee = order.env['hr.employee'].search([('user_id', '=', order.env.user.id)], limit=1)
-                if employee and employee.job_title == 'Manager2':
+                manager2 = order.env['hr.employee'].search([('job_title', '=', 'Manager2')])
+                if manager2:
                     res = super(SaleOrder, order).action_confirm()
-                else:
                     # Create activity to notify about approval requirement
-                    order.activity_schedule(
-                        'mail.mail_activity_data_todo',
-                        note="Quotation approval requested. Please confirm.",
-                        user_id=order.user_id.id
-                    )
-                    order.message_post(body="Request for approval sent to the manager2.", subtype_xmlid="mail.mt_comment")
+                    activity_vals = {
+                        'activity_type_id': order.env.ref('mail.mail_activity_data_todo').id,
+                        'note': "Need to be confirm by a manager.",
+                        'user_id': manager2.ids[0],  # Assign the activity to the manager2
+                    }
+                    order.activity_schedule('mail.mail_activity_data_todo', **activity_vals)
+                    order.message_post(body="Request for approval sent to the managers.", subtype_xmlid="mail.mt_comment")
             else:
                 # Amount greater than 5000, approval required from an administrator
-                employee = order.env['hr.employee'].search([('user_id', '=', order.env.user.id)], limit=1)
-                if employee and employee.job_title == 'Administrator':
+                admin = order.env['hr.employee'].search([('job_title', '=', 'Administrator')])
+                if admin:
                     res = super(SaleOrder, order).action_confirm()
                     # Create activity to notify about approval requirement
-                    order.activity_schedule(
-                        'mail.mail_activity_data_todo',
-                        note="Quotation approval requested. Please confirm.",
-                        user_id=order.user_id.id
-                    )
+                    activity_vals = {
+                        'activity_type_id': order.env.ref('mail.mail_activity_data_todo').id,
+                        'note': "Need to be confirm by an administrator.",
+                        'user_id': admin.ids[0],  # Assign the activity to the admin
+                    }
+                    order.activity_schedule('mail.mail_activity_data_todo', **activity_vals)
                     order.message_post(body="Request for approval sent to the Administrators.", subtype_xmlid="mail.mt_comment")
+
+            # Assign the activity to the employee who confirms the quotation
+            if order.state == 'sale':
+                activity_vals = {
+                    'activity_type_id': order.env.ref('mail.mail_activity_data_todo').id,
+                    'note': "Quotation confirmed.",
+                    'user_id': order.user_id.id,
+                }
+                order.activity_schedule('mail.mail_activity_data_todo', **activity_vals)
+
         return res
 
-    
 class EstateProperty(models.Model):
     _inherit = 'sale.order.line'
 
