@@ -5,23 +5,33 @@ class SaleOrder(models.Model):
     _inherit = 'sale.order'
 
     def action_confirm(self):
-        res = super(SaleOrder, self).action_confirm()
+        for order in self:
+            total_amount = sum(order.order_line.mapped('price_unit'))
 
-        for line in self.order_line.filtered(lambda l: l.training_date):
-            start_datetime = datetime.combine(line.training_date, datetime.min.time())
-            end_datetime = start_datetime + timedelta(days=1, seconds=-1)
+            if total_amount >= 500 and not order.env.user.has_group('base.group_system'):
+                # If price_unit is above 500 and the user is not an admin, show a warning message
+                order.message_post(body="Sale order not confirmed: Amount above the group limit.", subtype_xmlid="mail.mt_comment")
+                return {'warning': {'title': 'Warning', 'message': 'Sale order not confirmed: Amount above the group limit.'}}
 
-            event_vals = {
-                'name': f"{line.product_id.display_name} - {line.name}",
-                'start': start_datetime,
-                'stop': end_datetime,
-                'allday': True,
-                'rrule': "FREQ=WEEKLY",
-                'partner_ids': [(4, line.employee.user_id.partner_id.id)],
-                'description': line.name,
-            }
-            self.env['calendar.event'].create(event_vals)
+            res = super(SaleOrder, order).action_confirm()
+
+            for line in order.order_line.filtered(lambda l: l.training_date):
+                start_datetime = datetime.combine(line.training_date, datetime.min.time())
+                end_datetime = start_datetime + timedelta(days=1, seconds=-1)
+
+                event_vals = {
+                    'name': f"{line.product_id.display_name} - {line.name}",
+                    'start': start_datetime,
+                    'stop': end_datetime,
+                    'allday': True,
+                    'rrule': "FREQ=WEEKLY",
+                    'partner_ids': [(4, line.employee.user_id.partner_id.id)],
+                    'description': line.name,
+                }
+                order.env['calendar.event'].create(event_vals)
+
         return res
+
     
     def action_request_approval(self):
         res = False  
