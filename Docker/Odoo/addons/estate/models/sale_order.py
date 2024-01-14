@@ -23,6 +23,13 @@ class SaleOrder(models.Model):
             self.env['calendar.event'].create(event_vals)
 
         return res
+    
+    def action_request_approval(self):
+        self.ensure_one()
+        note_message = "Request for approval submitted."
+        self.message_post(body=note_message, subtype_xmlid="mail.mt_note")
+
+        return True
 
     
 class EstateProperty(models.Model):
@@ -32,6 +39,9 @@ class EstateProperty(models.Model):
     training_date = fields.Date(string="Training Date")  # Date de formation associée à la ligne de commande
     employee = fields.Many2one(comodel_name="hr.employee", string="Employee", ondelete="set null")  # Employé associé à la ligne de commande
     
+   
+   
+   
     
     state = fields.Selection([
         ('draft', 'Draft'),
