@@ -50,12 +50,18 @@ class SaleOrder(models.Model):
                 managers = order.env['hr.employee'].search([('job_title', 'in', ['Manager1', 'Manager2'])])
                 if managers:
                     # Create activity to notify about approval requirement
-                    activity_vals = {
+                    activity_vals_manager1 = {
                         'activity_type_id': order.env.ref('mail.mail_activity_data_todo').id,
-                        'note': "Need to be confirmed by a manager.",
-                        'user_id': managers[0].user_id.id,  # Assign activity to the first manager
+                        'note': f"Quotation {order.name} needs to be confirmed by Manager1.",
+                        'user_id': managers[0].user_id.id,
                     }
-                    order.activity_schedule('mail.mail_activity_data_todo', **activity_vals)
+                    activity_vals_manager2 = {
+                        'activity_type_id': order.env.ref('mail.mail_activity_data_todo').id,
+                        'note': f"Quotation {order.name} needs to be confirmed by Manager2.",
+                        'user_id': managers[1].user_id.id, 
+                    }
+                    order.activity_schedule('mail.mail_activity_data_todo', **activity_vals_manager1)
+                    order.activity_schedule('mail.mail_activity_data_todo', **activity_vals_manager2)
                     
             elif 1000 <= total_amount <= 5000:
                 # Approval required from managers with job title 'Manager2'
@@ -65,7 +71,7 @@ class SaleOrder(models.Model):
                     # Create activity to notify about approval requirement
                     activity_vals = {
                         'activity_type_id': order.env.ref('mail.mail_activity_data_todo').id,
-                        'note': "Need to be confirm by a manager.",
+                        'note': f"Quotation {order.name} needs to be confirm by a manager.",
                         'user_id': manager2[0].user_id.id,  # Assign activity to the first Manager2
                     }
                     order.activity_schedule('mail.mail_activity_data_todo', **activity_vals)
@@ -77,7 +83,7 @@ class SaleOrder(models.Model):
                     # Create activity to notify about approval requirement
                     activity_vals = {
                         'activity_type_id': order.env.ref('mail.mail_activity_data_todo').id,
-                        'note': "Need to be confirmed by an administrator.",
+                        'note': f"Quotation {order.name} needs to be confirmed by an administrator.",
                         'user_id': admin[0].user_id.id,  # Assign activity to the administrator
                     }
                     order.activity_schedule('mail.mail_activity_data_todo', **activity_vals)
