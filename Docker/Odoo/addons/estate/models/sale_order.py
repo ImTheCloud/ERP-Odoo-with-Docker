@@ -5,6 +5,7 @@ class SaleOrder(models.Model):
     _inherit = 'sale.order'
 
     def action_confirm(self):
+        # Check total amount for the order and user permissions
         for order in self:
             total_amount = sum(order.order_line.mapped('price_unit'))
 
@@ -13,14 +14,17 @@ class SaleOrder(models.Model):
                 order.message_post(body="Sale order not confirmed: Amount above the group limit.", subtype_xmlid="mail.mt_comment")
                 return {'warning': {'title': 'Warning', 'message': 'Sale order not confirmed: Amount above the group limit.'}}
 
+            # Call the original action_confirm method
             res = super(SaleOrder, order).action_confirm()
 
+            # Create calendar events for order lines with training dates
             for line in order.order_line.filtered(lambda l: l.training_date):
                 start_datetime = datetime.combine(line.training_date, datetime.min.time())
                 end_datetime = start_datetime + timedelta(days=1, seconds=-1)
 
                 user_id = line.employee.user_id.id if line.employee.user_id else False
 
+                # Create a calendar event for the training date
                 event_vals = {
                     'name': f"{line.product_id.display_name} - {line.name}",
                     'start': start_datetime,
@@ -32,12 +36,12 @@ class SaleOrder(models.Model):
                     'user_id': user_id,  # Assign activity to the user who should approve
                 }
                 order.env['calendar.event'].create(event_vals)
-
         return res
 
     def action_request_approval(self):
-        res = False  
+        res = False
 
+        # Check total amount for the order and initiate approval process
         for order in self:
             total_amount = sum(order.order_line.mapped('price_unit'))
 
@@ -45,11 +49,11 @@ class SaleOrder(models.Model):
                 # No approval required for amounts less than 500€
                 res = super(SaleOrder, order).action_confirm()
             elif 500 <= total_amount <= 1000:
-                order.message_post(body="Request for approval sent to the managers.", subtype_xmlid="mail.mt_comment")
                 # Approval required from managers with job title 'Manager1' or 'Manager2'
+                order.message_post(body="Request for approval sent to the managers.", subtype_xmlid="mail.mt_comment")
                 managers = order.env['hr.employee'].search([('job_title', 'in', ['Manager1', 'Manager2'])])
                 if managers:
-                    # Create activity to notify about approval requirement
+                    # Create activity to notify about approval requirement for both managers
                     activity_vals_manager1 = {
                         'activity_type_id': order.env.ref('mail.mail_activity_data_todo').id,
                         'note': f"Quotation {order.name} needs to be confirmed by Manager1.",
@@ -62,13 +66,12 @@ class SaleOrder(models.Model):
                     }
                     order.activity_schedule('mail.mail_activity_data_todo', **activity_vals_manager1)
                     order.activity_schedule('mail.mail_activity_data_todo', **activity_vals_manager2)
-                    
             elif 1000 <= total_amount <= 5000:
                 # Approval required from managers with job title 'Manager2'
                 manager2 = order.env['hr.employee'].search([('job_title', '=', 'Manager2')])
                 if manager2:
                     order.message_post(body="Request for approval sent to the managers.", subtype_xmlid="mail.mt_comment")
-                    # Create activity to notify about approval requirement
+                    # Create activity to notify about approval requirement for Manager2
                     activity_vals = {
                         'activity_type_id': order.env.ref('mail.mail_activity_data_todo').id,
                         'note': f"Quotation {order.name} needs to be confirm by a manager.",
@@ -80,12 +83,11 @@ class SaleOrder(models.Model):
                 # Amount greater than 5000, approval required from an administrator
                 admin = order.env['hr.employee'].search([('job_title', '=', 'Administrator')])
                 if admin:
-                    # Create activity to notify about approval requirement
+                    # Create activity to notify about approval requirement for the Administrator
                     activity_vals = {
                         'activity_type_id': order.env.ref('mail.mail_activity_data_todo').id,
                         'note': f"Quotation {order.name} needs to be confirmed by an administrator.",
                         'user_id': admin[0].user_id.id,  # Assign activity to the administrator
                     }
                     order.activity_schedule('mail.mail_activity_data_todo', **activity_vals)
-
         return res

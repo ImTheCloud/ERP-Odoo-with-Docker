@@ -1,16 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
   <data>
+    <!-- Registration of a custom view for the sale.order model -->
     <record id="sale_order_view_trainingdate" model="ir.ui.view">
       <field name="name">sale.order.view.trainingdate</field>
       <field name="model">sale.order</field>
+      
+      <!-- Inheriting from the standard view sale.view_order_form -->
       <field name="inherit_id" ref="sale.view_order_form"/>
       <field name="arch" type="xml">
-            <xpath expr="/form/sheet/notebook/page/field[@name='order_line']/tree/field[@name='tax_id']" position="after">
-                <field name="training_date"/>
-                <field name="employee"/>
-                <button name="button_request_approval" type="object" string="Request Approval" attrs="{'invisible': ['|', ('state', 'not in', ['draft', 'sent','sale']), ('id', '=', False)]}" data-hotkey="z"/>
-            </xpath>
+        
+        <!-- Injecting additional fields into the view hierarchy -->
+        <xpath expr="/form/sheet/notebook/page/field[@name='order_line']/tree/field[@name='tax_id']" position="after">
+          <field name="training_date"/>
+          <field name="employee"/>
+        </xpath>
+        
+        <!-- Adding the "Request Approval" button in the header -->
+        <header>
+          <button string="Request Approval" type="object" name="action_request_approval" class="o_sale_order"/>
+        </header>
       </field>
     </record>
   </data>
