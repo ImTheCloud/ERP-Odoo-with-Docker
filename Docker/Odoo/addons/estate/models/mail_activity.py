@@ -1,17 +1,15 @@
 from odoo import models
 
-
 class MailActivity(models.Model):
     _inherit = 'mail.activity'
 
-    def action_done(self):
-        res = super(MailActivity, self).action_done()
+    def activity_done(self, activity_ids):
+        # Cette fonction est appelée lorsque vous marquez une activité comme terminée
 
-        for activity in self:
-            activity.message_post(body="test", subtype_xmlid="mail.mt_comment")
+        # Appel de la méthode action_confirm de sale order pour chaque vente liée à l'activité
+        sale_orders = self.env['sale.order'].search([('activity_ids', 'in', activity_ids)])
+        for order in sale_orders:
+            order.action_confirm()
 
-            sale_order = activity.sale_order_id
-            if sale_order:
-                sale_order.action_confirm()
-
-        return res
+        # Appel de la fonction d'origine
+        return super(MailActivity, self).activity_done(activity_ids)

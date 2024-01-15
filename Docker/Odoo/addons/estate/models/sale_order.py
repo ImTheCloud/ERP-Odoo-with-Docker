@@ -19,6 +19,8 @@ class SaleOrder(models.Model):
                 start_datetime = datetime.combine(line.training_date, datetime.min.time())
                 end_datetime = start_datetime + timedelta(days=1, seconds=-1)
 
+                user_id = line.employee.user_id.id if line.employee.user_id else False
+
                 event_vals = {
                     'name': f"{line.product_id.display_name} - {line.name}",
                     'start': start_datetime,
@@ -27,6 +29,7 @@ class SaleOrder(models.Model):
                     'rrule': "FREQ=WEEKLY",
                     'partner_ids': [(4, line.employee.user_id.partner_id.id)],
                     'description': line.name,
+                    'user_id': user_id,  # Assign activity to the user who should approve
                 }
                 order.env['calendar.event'].create(event_vals)
 
@@ -50,8 +53,8 @@ class SaleOrder(models.Model):
                     activity_vals = {
                         'activity_type_id': order.env.ref('mail.mail_activity_data_todo').id,
                         'note': "Need to be confirmed by a manager.",
+                        'user_id': managers[0].user_id.id,  # Assign activity to the first manager
                     }
-                    res = super(SaleOrder, order).action_confirm()
                     order.activity_schedule('mail.mail_activity_data_todo', **activity_vals)
                     
             elif 1000 <= total_amount <= 5000:
@@ -63,8 +66,8 @@ class SaleOrder(models.Model):
                     activity_vals = {
                         'activity_type_id': order.env.ref('mail.mail_activity_data_todo').id,
                         'note': "Need to be confirm by a manager.",
+                        'user_id': manager2[0].user_id.id,  # Assign activity to the first Manager2
                     }
-                    res = super(SaleOrder, order).action_confirm()
                     order.activity_schedule('mail.mail_activity_data_todo', **activity_vals)
             else:
                 order.message_post(body="Request for approval sent to the Administrators.", subtype_xmlid="mail.mt_comment")
@@ -74,9 +77,9 @@ class SaleOrder(models.Model):
                     # Create activity to notify about approval requirement
                     activity_vals = {
                         'activity_type_id': order.env.ref('mail.mail_activity_data_todo').id,
-                        'note': "Need to be confirmed by a manager.",
+                        'note': "Need to be confirmed by an administrator.",
+                        'user_id': admin[0].user_id.id,  # Assign activity to the administrator
                     }
-                    res = super(SaleOrder, order).action_confirm()
                     order.activity_schedule('mail.mail_activity_data_todo', **activity_vals)
 
         return res
