@@ -58,51 +58,37 @@ class SaleOrder(models.Model):
     def action_request_approval(self):
         res = False
 
-        # Check total amount for the order and initiate approval process
         for order in self:
             total_amount = sum(order.order_line.mapped('price_unit'))
 
-
             if 500 <= total_amount <= 1000:
-                # Approval required from managers with job title 'Manager1' or 'Manager2'
-                order.message_post(body="Request for approval sent to the managers.", subtype_xmlid="mail.mt_comment")
-                managers = order.env['hr.employee'].search([('job_title', 'in', ['Manager1', 'Manager2'])])
-                if managers:
-                    # Create activity to notify about approval requirement for both managers
-                    activity_vals_manager1 = {
-                        'activity_type_id': order.env.ref('mail.mail_activity_data_todo').id,
-                        'note': f"Quotation {order.name} needs to be confirmed by Manager1.",
-                        'user_id': managers[0].user_id.id,
-                    }
-                    activity_vals_manager2 = {
-                        'activity_type_id': order.env.ref('mail.mail_activity_data_todo').id,
-                        'note': f"Quotation {order.name} needs to be confirmed by Manager2.",
-                        'user_id': managers[1].user_id.id, 
-                    }
-                    order.activity_schedule('mail.mail_activity_data_todo', **activity_vals_manager1)
-                    order.activity_schedule('mail.mail_activity_data_todo', **activity_vals_manager2)
+                self._request_approval_for_managers(order, ['Manager1', 'Manager2'])
             elif 1000 <= total_amount <= 5000:
-                # Approval required from managers with job title 'Manager2'
-                manager2 = order.env['hr.employee'].search([('job_title', '=', 'Manager2')])
-                if manager2:
-                    order.message_post(body="Request for approval sent to the managers.", subtype_xmlid="mail.mt_comment")
-                    # Create activity to notify about approval requirement for Manager2
-                    activity_vals = {
-                        'activity_type_id': order.env.ref('mail.mail_activity_data_todo').id,
-                        'note': f"Quotation {order.name} needs to be confirm by a manager.",
-                        'user_id': manager2[0].user_id.id,  # Assign activity to the first Manager2
-                    }
-                    order.activity_schedule('mail.mail_activity_data_todo', **activity_vals)
+                self._request_approval_for_managers(order, ['Manager2'])
             else:
-                order.message_post(body="Request for approval sent to the Administrators.", subtype_xmlid="mail.mt_comment")
-                # Amount greater than 5000, approval required from an administrator
-                admin = order.env['hr.employee'].search([('job_title', '=', 'Administrator')])
-                if admin:
-                    # Create activity to notify about approval requirement for the Administrator
-                    activity_vals = {
-                        'activity_type_id': order.env.ref('mail.mail_activity_data_todo').id,
-                        'note': f"Quotation {order.name} needs to be confirmed by an administrator.",
-                        'user_id': admin[0].user_id.id,  # Assign activity to the administrator
-                    }
-                    order.activity_schedule('mail.mail_activity_data_todo', **activity_vals)
+                self._request_approval_for_administrator(order)
+
         return res
+
+    def _request_approval_for_managers(self, order, manager_titles):
+        order.message_post(body="Request for approval sent to the managers.", subtype_xmlid="mail.mt_comment")
+        managers = order.env['hr.employee'].search([('job_title', 'in', manager_titles)])
+
+        if managers:
+            for manager in managers:
+                self._create_activity_for_manager(order, f"Quotation {order.name} needs to be confirmed by {manager.job_title}.", manager.user_id.id)
+
+    def _request_approval_for_administrator(self, order):
+        order.message_post(body="Request for approval sent to the Administrators.", subtype_xmlid="mail.mt_comment")
+        admin = order.env['hr.employee'].search([('job_title', '=', 'Administrator')])
+
+        if admin:
+            self._create_activity_for_manager(order, f"Quotation {order.name} needs to be confirmed by an administrator.", admin[0].user_id.id)
+
+    def _create_activity_for_manager(self, order, note, user_id):
+        activity_vals = {
+            'activity_type_id': order.env.ref('mail.mail_activity_data_todo').id,
+            'note': note,
+            'user_id': user_id,
+        }
+        order.activity_schedule('mail.mail_activity_data_todo', **activity_vals)
