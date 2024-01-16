@@ -10,13 +10,15 @@ class SaleOrder(models.Model):
         # Check total amount for the order and user permissions
         for order in self:
             total_amount = sum(order.order_line.mapped('price_unit'))
-                            
-            if total_amount < 500:
-                 res = super(SaleOrder, order).action_confirm()
-            elif 500 <= total_amount <= 1000:
-                # Get the current user's job title
-                current_user_job_title = order.env.user.employee_id.job_title
+            current_user_job_title = order.env.user.employee_id.job_title
 
+            if total_amount < 500:
+                if current_user_job_title in ['EmployeeLimited'] and total_amount >= 250:
+                    order.message_post(body="Sale order not confirmed: Amount above the group limit.", subtype_xmlid="mail.mt_comment")
+                    return {'warning': {'title': 'Warning', 'message': 'Sale order not confirmed: Amount above the group limit.'}}
+                else:
+                    res = super(SaleOrder, order).action_confirm()
+            elif 500 <= total_amount <= 1000:
                 # Check if the current user's job title is in the allowed titles
                 if current_user_job_title in ['Manager1', 'Manager2','Administrator']:
                     res = super(SaleOrder, order).action_confirm()
@@ -25,8 +27,6 @@ class SaleOrder(models.Model):
                 return {'warning': {'title': 'Warning', 'message': 'Sale order not confirmed: Amount above the group limit.'}}
                     
             elif 1000 <= total_amount <= 5000:
-                current_user_job_title = order.env.user.employee_id.job_title
-
                 # Check if the current user's job title is 'Manager2' or 'Administrator'
                 if current_user_job_title in ['Manager2', 'Administrator']:
                     res = super(SaleOrder, order).action_confirm()
@@ -35,8 +35,6 @@ class SaleOrder(models.Model):
                 return {'warning': {'title': 'Warning', 'message': 'Sale order not confirmed: Amount above the group limit.'}}
                 
             elif total_amount > 5000:
-                current_user_job_title = order.env.user.employee_id.job_title
-
                 # Check if the current user's job title is 'Administrator'
                 if current_user_job_title in ['Administrator']:
                     res = super(SaleOrder, order).action_confirm()
@@ -74,10 +72,8 @@ class SaleOrder(models.Model):
         for order in self:
             total_amount = sum(order.order_line.mapped('price_unit'))
 
-            if total_amount < 500:
-                # No approval required for amounts less than 500€
-                res = super(SaleOrder, order).action_confirm()
-            elif 500 <= total_amount <= 1000:
+
+            if 500 <= total_amount <= 1000:
                 # Approval required from managers with job title 'Manager1' or 'Manager2'
                 order.message_post(body="Request for approval sent to the managers.", subtype_xmlid="mail.mt_comment")
                 managers = order.env['hr.employee'].search([('job_title', 'in', ['Manager1', 'Manager2'])])
