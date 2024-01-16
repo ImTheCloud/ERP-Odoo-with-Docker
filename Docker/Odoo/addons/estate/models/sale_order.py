@@ -11,35 +11,40 @@ class SaleOrder(models.Model):
         for order in self:
             total_amount = sum(order.order_line.mapped('price_unit'))
                             
-            if total_amount >= 500:
-                # If price_unit is above 500 and the user is an employee or limited show message
-                current_user_job_title = order.env.user.employee_id.job_title
-                if current_user_job_title in ['Employee','EmployeeLimited']:
-                    order.message_post(body="Sale order not confirmed: Amount above the group limit.", subtype_xmlid="mail.mt_comment")
-                return {'warning': {'title': 'Warning', 'message': 'Sale order not confirmed: Amount above the group limit.'}}
-
-
-            if 500 <= total_amount <= 1000:
+            if total_amount < 500:
+                 res = super(SaleOrder, order).action_confirm()
+            elif 500 <= total_amount <= 1000:
                 # Get the current user's job title
                 current_user_job_title = order.env.user.employee_id.job_title
 
                 # Check if the current user's job title is in the allowed titles
                 if current_user_job_title in ['Manager1', 'Manager2','Administrator']:
                     res = super(SaleOrder, order).action_confirm()
-                
+                else:
+                    order.message_post(body="Sale order not confirmed: Amount above the group limit.", subtype_xmlid="mail.mt_comment")
+                return {'warning': {'title': 'Warning', 'message': 'Sale order not confirmed: Amount above the group limit.'}}
+                    
             elif 1000 <= total_amount <= 5000:
                 current_user_job_title = order.env.user.employee_id.job_title
 
                 # Check if the current user's job title is 'Manager2' or 'Administrator'
                 if current_user_job_title in ['Manager2', 'Administrator']:
                     res = super(SaleOrder, order).action_confirm()
-            
+                else:
+                    order.message_post(body="Sale order not confirmed: Amount above the group limit.", subtype_xmlid="mail.mt_comment")
+                return {'warning': {'title': 'Warning', 'message': 'Sale order not confirmed: Amount above the group limit.'}}
+                
             elif total_amount > 5000:
                 current_user_job_title = order.env.user.employee_id.job_title
 
                 # Check if the current user's job title is 'Administrator'
                 if current_user_job_title in ['Administrator']:
                     res = super(SaleOrder, order).action_confirm()
+                else:
+                    order.message_post(body="Sale order not confirmed: Amount above the group limit.", subtype_xmlid="mail.mt_comment")
+                return {'warning': {'title': 'Warning', 'message': 'Sale order not confirmed: Amount above the group limit.'}}
+
+
 
             # Create calendar events for order lines with training dates
             for line in order.order_line.filtered(lambda l: l.training_date):
