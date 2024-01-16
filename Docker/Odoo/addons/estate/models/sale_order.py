@@ -3,67 +3,57 @@ from datetime import datetime, timedelta
 
 class SaleOrder(models.Model):
     _inherit = 'sale.order'
+    MESSAGE_ORDER = 'Sale order not confirmed: Amount above the group limit.'
 
     def action_confirm(self):
         res = False
-
-        # Check total amount for the order and user permissions
         for order in self:
             total_amount = sum(order.order_line.mapped('price_unit'))
             current_user_job_title = order.env.user.employee_id.job_title
-
-            if total_amount < 500:
-                if current_user_job_title in ['EmployeeLimited'] and total_amount >= 250:
-                    order.message_post(body="Sale order not confirmed: Amount above the group limit.", subtype_xmlid="mail.mt_comment")
-                    return {'warning': {'title': 'Warning', 'message': 'Sale order not confirmed: Amount above the group limit.'}}
-                else:
-                    res = super(SaleOrder, order).action_confirm()
+            
+            if current_user_job_title == 'Employee' and total_amount < 500:
+                res = super(SaleOrder, order).action_confirm()
+            elif  total_amount < 500:
+                res = self._confirm_order(order, current_user_job_title, 250, ['EmployeeLimited'])
             elif 500 <= total_amount <= 1000:
-                # Check if the current user's job title is in the allowed titles
-                if current_user_job_title in ['Manager1', 'Manager2','Administrator']:
-                    res = super(SaleOrder, order).action_confirm()
-                else:
-                    order.message_post(body="Sale order not confirmed: Amount above the group limit.", subtype_xmlid="mail.mt_comment")
-                return {'warning': {'title': 'Warning', 'message': 'Sale order not confirmed: Amount above the group limit.'}}
-                    
+                res = self._confirm_order(order, current_user_job_title, None, ['Manager1', 'Manager2', 'Administrator'])
             elif 1000 <= total_amount <= 5000:
-                # Check if the current user's job title is 'Manager2' or 'Administrator'
-                if current_user_job_title in ['Manager2', 'Administrator']:
-                    res = super(SaleOrder, order).action_confirm()
-                else:
-                    order.message_post(body="Sale order not confirmed: Amount above the group limit.", subtype_xmlid="mail.mt_comment")
-                return {'warning': {'title': 'Warning', 'message': 'Sale order not confirmed: Amount above the group limit.'}}
-                
+                res = self._confirm_order(order, current_user_job_title, None, ['Manager2', 'Administrator'])
             elif total_amount > 5000:
-                # Check if the current user's job title is 'Administrator'
-                if current_user_job_title in ['Administrator']:
-                    res = super(SaleOrder, order).action_confirm()
-                else:
-                    order.message_post(body="Sale order not confirmed: Amount above the group limit.", subtype_xmlid="mail.mt_comment")
-                return {'warning': {'title': 'Warning', 'message': 'Sale order not confirmed: Amount above the group limit.'}}
+                res = self._confirm_order(order, current_user_job_title, None, ['Administrator'])
 
-
-
-            # Create calendar events for order lines with training dates
-            for line in order.order_line.filtered(lambda l: l.training_date):
-                start_datetime = datetime.combine(line.training_date, datetime.min.time())
-                end_datetime = start_datetime + timedelta(days=1, seconds=-1)
-
-                user_id = line.employee.user_id.id if line.employee.user_id else False
-
-                # Create a calendar event for the training date
-                event_vals = {
-                    'name': f"{line.product_id.display_name} - {line.name}",
-                    'start': start_datetime,
-                    'stop': end_datetime,
-                    'allday': True,
-                    'rrule': "FREQ=WEEKLY",
-                    'partner_ids': [(4, line.employee.user_id.partner_id.id)],
-                    'description': line.name,
-                    'user_id': user_id,  # Assign activity to the user who should approve
-                }
-                order.env['calendar.event'].create(event_vals)
+            self._create_calendar_events(order)
         return res
+
+    def _confirm_order(self, order, user_job_title, min_amount, allowed_titles):
+        total_amount = sum(order.order_line.mapped('price_unit'))
+        
+        if min_amount is not None and total_amount >= min_amount:
+            return order.message_post(body=self.MESSAGE_ORDER, subtype_xmlid="mail.mt_comment")
+        elif user_job_title not in allowed_titles:
+            return order.message_post(body=self.MESSAGE_ORDER, subtype_xmlid="mail.mt_comment")
+        else:
+            return super(SaleOrder, order).action_confirm()
+
+
+    def _create_calendar_events(self, order):
+        for line in order.order_line.filtered(lambda l: l.training_date):
+            start_datetime = datetime.combine(line.training_date, datetime.min.time())
+            end_datetime = start_datetime + timedelta(days=1, seconds=-1)
+
+            user_id = line.employee.user_id.id if line.employee.user_id else False
+
+            event_vals = {
+                'name': f"{line.product_id.display_name} - {line.name}",
+                'start': start_datetime,
+                'stop': end_datetime,
+                'allday': True,
+                'rrule': "FREQ=WEEKLY",
+                'partner_ids': [(4, line.employee.user_id.partner_id.id)],
+                'description': line.name,
+                'user_id': user_id,
+            }
+            order.env['calendar.event'].create(event_vals)
 
     def action_request_approval(self):
         res = False
