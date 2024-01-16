@@ -9,12 +9,23 @@ class SaleOrder(models.Model):
         for order in self:
             total_amount = sum(order.order_line.mapped('price_unit'))
 
-            if total_amount >= 500 and not order.env.user.has_group('base.group_system'):
-                # If price_unit is above 500 and the user is not an admin, show a warning message
-                order.message_post(body="Sale order not confirmed: Amount above the group limit.", subtype_xmlid="mail.mt_comment")
-                return {'warning': {'title': 'Warning', 'message': 'Sale order not confirmed: Amount above the group limit.'}}
+            # Check user permissions based on total amount and job title
+            if 500 <= total_amount <= 1000:
+                # Get the current user's job title
+                current_user_job_title = order.env.user.employee_id.job_title
 
-            # Call the original action_confirm method
+                # Check if the current user's job title is in the allowed titles
+                if current_user_job_title in ['Manager1', 'Manager2','Administrator']:
+                    return super(SaleOrder, order).action_confirm()
+                
+            elif 1000 <= total_amount <= 5000:
+                current_user_job_title = order.env.user.employee_id.job_title
+
+                # Check if the current user's job title is 'Manager2' or 'Administrator'
+                if current_user_job_title in ['Manager2', 'Administrator']:
+                    return super(SaleOrder, order).action_confirm()
+            
+            # For amounts above 5000, or if not within any specific range, follow the default behavior
             res = super(SaleOrder, order).action_confirm()
 
             # Create calendar events for order lines with training dates
